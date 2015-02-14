@@ -61,7 +61,8 @@ defmodule MariaexTest do
     :ok = query("CREATE TABLE test (id int, text text)", [])
     [] = query("SELECT * FROM test", [])
     [] = query("INSERT INTO test VALUES (27, 'foobar')", [], [])
-    [{27, "foobar"}] = query("SELECT * FROM test", [])
+    [] = query("INSERT INTO test VALUES (?, ?)", [28, "fizzbuzz"], [])
+    [{27, "foobar"}, {28, "fizzbuzz"}] = query("SELECT * FROM test", [])
   end
 
   test "connection works after failure", context do
