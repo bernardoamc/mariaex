@@ -208,9 +208,39 @@ defmodule Mariaex.Connection do
     end
   end
 
-  defp command({:query, statement, _params, _opts}, s) do
+  defp command({:query, statement, [], opts}, s) do
     Protocol.send_query(statement, s)
   end
+
+  defp command({:query, statement, params, opts}, s) do
+    prepared_statement = "PREPARE stmt1 FROM '#{statement}';"
+    {names, set_variables} = generate_prepared_statement_variables(params)
+    execute_statement = "EXECUTE stmt1 USING #{Enum.join(names, ",")};"
+    deallocate_statement = "DEALLOCATE PREPARE stmt1;"
+
+    statements = List.flatten([prepared_statement, set_variables, execute_statement, deallocate_statement]) |> Enum.join(" ")
+
+    # This works, but mariaex doesn't know how to return a value from this query
+    Protocol.send_query(statements, s)
+  end
+
+  # Learn how to increment a character to do something like "String.inc @a" -> "@b"
+  # Since I don't know how to change the variable names this works with only one param.
+  # How to append to the the list instead of prepend? [list | arg] does not work.
+  defp generate_prepared_statement_variables(params) do
+    Enum.reduce(params, {[], []}, fn(param, {variables, sql}) ->
+      {Enum.into(["@a"], variables), Enum.into(["SET @a = #{parse_param(param)};"], sql)}
+    end)
+  end
+
+  defp parse_param(param) when is_integer(param) do
+    to_string(param)
+  end
+
+  defp parse_param(param) when is_binary(param) do
+    "\"#{param}\""
+  end
+
 
   @doc false
   def new_query(statement, %{queue: queue} = s) do
